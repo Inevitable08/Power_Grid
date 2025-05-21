@@ -1,0 +1,259 @@
+import numpy as np
+import networkx as nx
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Initialize the graph
+num_houses = 15
+num_transformers = 4
+num_substations = 2
+G = nx.DiGraph()
+
+# Example: Adding nodes with attributes
+for i in range(num_substations):
+    G.add_node(f'Substation_{i}', pos=(i * 2, 4), type='substation', voltage=11000, capacity=round(np.random.uniform(50, 100), 2))
+
+# Add transformers
+for i in range(num_transformers):
+    G.add_node(f'Transformer_{i}', pos=(i * 2, 2), type='transformer', voltage=400, capacity=round(np.random.uniform(10, 30), 2))
+
+# Add houses with integer positions
+for i in range(num_houses):
+    G.add_node(f'House_{i}', pos=(np.random.randint(0, 10), np.random.randint(0, 2)), type='house', voltage=220, demand=round(np.random.uniform(1, 5), 2))
+
+# Connect substations to transformers
+for i in range(num_substations):
+    for j in range(num_transformers):
+        distance = np.random.uniform(20, 50)  # Distance between 20-50 km
+        resistance = np.random.uniform(0.1, 10)  # Random resistance
+        capacity = np.random.uniform(5, 15)  # Random capacity
+        G.add_edge(f'Substation_{i}', f'Transformer_{j}',
+                   weight=distance, resistance=resistance, capacity=capacity)
+
+# Connect transformers to houses
+for i in range(num_transformers):
+    for j in range(num_houses // num_transformers):
+        distance = np.random.uniform(1, 5)  # Distance under 5 km
+        resistance = np.random.uniform(0.1, 10)  # Random resistance
+        capacity = np.random.uniform(5, 15)  # Random capacity
+        house_index = i * (num_houses // num_transformers) + j
+        G.add_edge(f'Transformer_{i}', f'House_{house_index}',
+                   weight=distance, resistance=resistance, capacity=capacity)
+
+# Draw the graph
+pos = nx.get_node_attributes(G, 'pos')
+plt.figure(figsize=(10, 5))
+nx.draw(G, pos, with_labels=True, node_color='lightblue', arrows=True)
+plt.title("Power Grid Graph")
+plt.show()
+
+# Create a DataFrame for nodes
+node_data = {
+    'Node': [],
+    'Type': [],
+    'Position': [],
+    'Voltage Level': [],
+    'Capacity': [],
+    'Demand': []
+}
+
+for node in G.nodes(data=True):
+    node_data['Node'].append(node[0])
+    node_data['Type'].append(node[1]['type'])
+    node_data['Position'].append(node[1]['pos'])
+
+    if "Substation" in node[0]:
+        node_data['Voltage Level'].append(11000)  # Example voltage level
+        node_data['Capacity'].append(node[1]['capacity'])
+        node_data['Demand'].append(0)  # Substations do not have demand
+    elif "Transformer" in node[0]:
+        node_data['Voltage Level'].append(400)  # Example voltage level
+        node_data['Capacity'].append(node[1]['capacity'])
+        node_data['Demand'].append(0)  # Transformers do not have demand
+    else:
+        node_data['Voltage Level'].append(220)
+        node_data['Capacity'].append(0)  # Houses do not have capacity
+        node_data['Demand'].append(node[1]['demand'])  # Houses have demand
+
+node_df = pd.DataFrame(node_data)
+print("Node Information:")
+print(node_df)
+
+# Create a DataFrame for edges
+edge_data = {
+    'Source': [],
+    'Target': [],
+    'Distance (km)': [],
+    'Resistance (Ohms)': [],
+   # 'Capacity (A)': []
+}
+
+for u, v, data in G.edges(data=True):
+    edge_data['Source'].append(u)
+    edge_data['Target'].append(v)
+    edge_data['Distance (km)'].append(round(data['weight'], 2))
+    edge_data['Resistance (Ohms)'].append(round(data['resistance'], 2))
+    #edge_data['Capacity (A)'].append(round(data['capacity'], 2))
+
+edge_df = pd.DataFrame(edge_data)
+print("\nEdge Information:")
+print(edge_df)
+
+
+
+#install Torch-geometric
+!pip install torch-geometric
+
+
+
+import torch
+from torch_geometric.data import Data
+
+# Create edge index and edge attributes
+edge_index = []
+edge_attr = []
+for u, v, data in G.edges(data=True):
+    edge_index.append([list(G.nodes).index(u), list(G.nodes).index(v)])
+    edge_attr.append([data['weight'], data['resistance']])  # Add more attributes as needed
+
+edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+
+# Create node features
+node_features = []
+for node, data in G.nodes(data=True):
+    if data['type'] == 'substation' or data['type'] == 'transformer':
+        node_features.append([data['voltage'], data['capacity']])
+    else:
+        node_features.append([data['voltage'], data['demand']])
+
+x = torch.tensor(node_features, dtype=torch.float)
+
+# Create data object
+data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+
+
+
+
+
+import torch.optim as optim
+
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+loss_fn = nn.MSELoss()  # Example loss function, adjust as needed
+
+# Example targets, replace with actual targets
+data.y = torch.rand(x.shape[0], 1)  # Example random targets
+
+# Training loop
+def train(data, model, optimizer, loss_fn, epochs=100):
+    model.train()
+    for epoch in range(10):
+        optimizer.zero_grad()
+        out = model(data)
+        loss = loss_fn(out, data.y)  # Define target values appropriately
+        loss.backward()
+        optimizer.step()
+        print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+
+train(data, model, optimizer, loss_fn)
+
+
+
+
+# Example evaluation
+model.eval()
+with torch.no_grad():
+    out = model(data)
+    # Evaluate model performance, e.g., calculate total power loss, efficiency, etc.
+
+# Example visualization
+import matplotlib.pyplot as plt
+
+# Visualize node features or predictions
+predicted_values = out.detach().numpy()
+plt.figure(figsize=(10, 5))
+nx.draw(G, pos=nx.get_node_attributes(G, 'pos'), with_labels=True, node_color=predicted_values, cmap=plt.cm.viridis, arrows=True)
+plt.title("Power Grid Graph with Node Predictions")
+plt.show()
+
+
+
+
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+
+# Normalize the predicted values for color mapping
+norm = mcolors.Normalize(vmin=min(predicted_values), vmax=max(predicted_values))
+sm = cm.ScalarMappable(cmap='viridis', norm=norm)
+sm.set_array([])
+
+plt.figure(figsize=(10, 5))
+nx.draw(G, pos=nx.get_node_attributes(G, 'pos'), with_labels=True,
+        node_color=predicted_values, cmap=plt.cm.viridis, arrows=True)
+plt.colorbar(sm, label='Predicted Values')
+plt.title("Power Grid Graph with Node Predictions")
+plt.show()
+
+
+
+
+
+# Function to find the shortest path based on user input
+def find_shortest_path(graph, source, target):
+    if source not in graph:
+        print(f"Error: Source node '{source}' not found in the graph.")
+        return None
+    if target not in graph:
+        print(f"Error: Target node '{target}' not found in the graph.")
+        return None
+    try:
+        path = nx.shortest_path(graph, source=source, target=target, weight='weight')
+        print(f'Shortest path from {source} to {target}: {path}')
+        # Calculate the total distance
+        total_distance = 0
+        distances = []
+        for i in range(len(path) - 1):
+            distance = graph[path[i]][path[i+1]]['weight']
+            total_distance += distance
+            distances.append(distance)
+        print(f'Total distance: {total_distance:.2f} km')
+
+        return path, total_distance, distances
+
+    except nx.NetworkXNoPath:
+        print(f'No path found from {source} to {target}')
+        return None
+
+# User input for shortest path
+source_node = input("Enter the source node: ")
+target_node = input("Enter the target node: ")
+
+# Find and print the shortest path
+shortest_path = find_shortest_path(G, source_node, target_node)
+
+
+
+
+# Visualize the shortest path
+if shortest_path:
+    path, total_distance, distances = shortest_path # Unpack the tuple here
+    path_edges = list(zip(path, path[1:]))
+    edge_colors = ['black' if not edge in path_edges else 'red' for edge in G.edges()]
+    node_colors = ['lightblue' if not node in path else 'red' for node in G.nodes()]
+
+    plt.figure(figsize=(10, 5))
+    nx.draw(G, pos, with_labels=True, node_color=node_colors, edge_color=edge_colors, arrows=True)
+
+    # Add edge labels for distances
+    edge_labels = {(u, v): f"{data['weight']:.2f} km" for u, v, data in G.edges(data=True)}
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+
+    plt.title(f"Shortest Path from {source_node} to {target_node}")
+    plt.show()
+
+    # Print the distances along the shortest path
+    print("\nDistances along the shortest path:")
+    for i in range(len(path) - 1): # Use path here as well
+        print(f"{path[i]} -> {path[i + 1]}: {distances[i]:.2f} km")
+    print(f'Total distance: {total_distance:.2f} km')
+
